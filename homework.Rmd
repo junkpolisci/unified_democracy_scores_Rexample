@@ -1,0 +1,75 @@
+---
+title: "Using UDS in R"
+author: "Christopher Junk"
+date: "April 22, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+After loading the data I will replicate the models in the first few tables. 
+```{r, include=F}
+
+original <- foreign::read.dta("PA_DTA_file.dta")
+uds1000 <- read.csv("uds_1000.csv")
+
+uds1000 <- uds1000 %>% 
+           mutate(id = cowcode)
+
+original_1975 <- original %>% 
+                 filter(year >= 1975)
+
+original_1975$year <- lubridate::ymd(year, truncated = 2L)
+```
+
+```{r}
+library(pcse)
+
+      # *** Column 5: dv = polity
+      # xtpcse polityiv L1.pcaplog L1.rgdppcgr L1.open L1.cpi L1.prime
+      #   L1.second L1.presiden L1.parliamn L1.bksfrac if dv1==1 & dv2==1 & dv3==1,
+      #   pairwise c(a)
+      # 
+original_1975_lags <- original_1975 %>% 
+                      arrange(id, year) %>% 
+                      group_by(id) %>% 
+                      mutate(l1pcaplog = lag(pcaplog, ),
+                             l1rgdppcgr = lag(rgdppcgr) ,
+                             l1open = lag(open) ,
+                             l1cpi = lag(cpi) ,
+                             l1prime = lag(prime) ,
+                             l1second = lag(second),
+                             l1presiden = lag(presiden),
+                             l1parliamn = lag(parliamn),
+                             l1bksfrac = lag(bksfrac),
+                             year_factor = as.factor(year)) %>% 
+                      filter(dv1 == 1, 
+                             dv2 == 1, 
+                             dv3 == 1) %>% 
+                      ungroup()
+
+
+col5.lm <- lm(polityiv ~ l1pcaplog + l1rgdppcgr + l1open + l1cpi + l1prime + l1second + l1presiden + l1parliamn + l1bksfrac, data = original_1975_lags)
+dim(model.matrix(col5.lm))[1]
+length(unique(original_1975_lags$year)) * length(unique(original_1975_lags$id))
+
+
+col5.pcse <- pcse(col5.lm, groupN = original_1975_lags$id, groupT = original_1975_lags$year, pairwise = T)
+
+      # *** Column 6: dv = vanhanen
+      # xtpcse poly12 L1.pcaplog L1.rgdppcgr L1.open L1.cpi L1.prime
+      #   L1.second L1.presiden L1.parliamn L1.bksfrac if dv1==1 & dv2==1 & dv3==1,
+      #   pairwise c(a)
+      # 
+col6.lm <- lm(poly12 ~ l1pcaplog + l1rgdppcgr + l1open + l1cpi + l1prime + l1second + l1presiden + l1parliamn + l1bksfrac, data = original_1975_lags)
+
+      # *** Column 7: dv = freedom house
+      # xtpcse fhscore L1.pcaplog L1.rgdppcgr L1.open L1.cpi L1.prime
+      #   L1.second L1.presiden L1.parliamn L1.bksfrac if dv1==1 & dv2==1 & dv3==1,
+      #   pairwise c(a)
+col7.lm <- lm(fhscore ~ l1pcaplog + l1rgdppcgr + l1open + l1cpi + l1prime + l1second + l1presiden + l1parliamn + l1bksfrac, data = original_1975_lags)
+
+```
+
